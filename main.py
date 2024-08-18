@@ -8,11 +8,13 @@ import random
 import os
 os.environ['SDL_AUDIODRIVER'] = 'dsp'
 import time
+import csv
 pygame.init()
 
 # load images
 main_image = pygame.image.load("images/mainscreen.png")
 info_image = pygame.image.load("images/info.png")
+game_bg = pygame.image.load("images/gamebg.png")
 countdown_images = [
     pygame.image.load("images/go.png"),
     pygame.image.load("images/1.png"),
@@ -22,6 +24,16 @@ countdown_images = [
 
 # load fonts
 lexend_bold = pygame.font.Font("fonts/Lexend/static/Lexend-Bold.ttf", 26)
+arabic_fonts = [
+    pygame.font.Font("fonts/Alkalami-Regular.ttf", 90),
+    pygame.font.Font("fonts/ArefRuqaa-Regular.ttf", 90),
+    pygame.font.Font("fonts/Blaka-Regular.ttf", 90),
+    pygame.font.Font("fonts/Far_Vosta.ttf", 90),
+    pygame.font.Font("fonts/Handjet-Medium.ttf", 90),
+    pygame.font.Font("fonts/jb-funland.ttf", 90),
+    pygame.font.Font("fonts/Rakkas-Regular.ttf", 90),
+    pygame.font.Font("fonts/ReemKufi-Bold.ttf", 90),
+]
 
 # universal variables
 width, height = 900, 600
@@ -34,6 +46,15 @@ color_pallete = {
     "buttonHover": (150, 150, 150),
     "buttonText": (35, 35, 40)
 }
+temporary_word = "العربية"
+question_number = 1
+correct_answers = 0
+selected_word = False
+in_arabic, correct, wrong1, wrong2, wrong3 = "", "", "", "", ""
+timer_start = 60
+timer_value = timer_start
+timer_running = False
+last_update_time = 0
 
 
 # create the window
@@ -73,17 +94,50 @@ def fadeOutImage(image):
         countdown_index -= 1
     image.set_alpha(alpha)
 
+def updateTimer():
+    global timer_value, timer_running, last_update_time
+    if timer_running:
+        current_time = pygame.time.get_ticks()
+        elapsed_time = (current_time - last_update_time) / 1000  # milliseconds to seconds
+        if elapsed_time >= 1:
+            timer_value -= int(elapsed_time)
+            last_update_time = current_time
+        if timer_value <= 0:
+            timer_value = 0
+            timer_running = False
+
 # display the countdown
 def displayCountdown():
-    global countdown_index, fade_in, fade_out, countdown_screen
+    global countdown_index, fade_in, fade_out, countdown_screen, game_screen, timer_running, last_update_time
     screen.blit(countdown_images[countdown_index], (0, 0))
-    time.sleep(0.5)
+    pygame.time.delay(500)
     countdown_index -= 1
-    if countdown_index < 0:
+    if countdown_index < -1:
         countdown_index = 3
         countdown_screen = False
+        game_screen = True
+        timer_running = True  # Start the timer
+        last_update_time = pygame.time.get_ticks()  # Initialize last update time
     else:
         fade_in = True
+
+def gameLogic():
+    global in_arabic, correct, wrong1, wrong2, wrong3, selected_word, selected_font
+    if selected_word == False: 
+        # open and read the CSV file
+        with open('words.csv', newline='', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile)
+            lines = list(reader)
+        # select a random line
+        random_line = random.choice(lines)
+        in_arabic, correct, wrong1, wrong2, wrong3 = random_line
+        selected_font = random.choice(arabic_fonts)
+        selected_font.set_script("Arab")
+        selected_font.set_direction(pygame.DIRECTION_RTL)
+        selected_word = True
+        return in_arabic, correct, wrong1, wrong2, wrong3, selected_font
+    else:
+        return in_arabic, correct, wrong1, wrong2, wrong3, selected_font
 
 
 ### MAIN LOOP ###
@@ -102,6 +156,7 @@ countdown_index = 3
 begin_switch = False
 
 while running:
+    updateTimer()
 
     # main screen
 
@@ -110,9 +165,9 @@ while running:
             fadeInImage(main_image)
         screen.fill(color_pallete["black"])
         screen.blit(main_image, (0, 0))
-        start_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 10 - 15, 300, 50)
+        start_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 30, 300, 60)
         createButton(screen, "start!", start_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["red"])
-        quit_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 10 + 60, 300, 50)
+        quit_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 10 + 100, 300, 60)
         createButton(screen, "quit", quit_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["black"])
         if begin_switch:
             if fade_out:
@@ -129,7 +184,7 @@ while running:
         fadeInImage(info_image)
         screen.fill(color_pallete["black"])
         screen.blit(info_image, (0, 0))
-        ready_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 10 + 100, 300, 50)
+        ready_button_rect = pygame.Rect(width // 2 - 150, height // 2 + 10 + 100, 300, 60)
         createButton(screen, "ready!", ready_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["red"])
         if begin_switch:
             info_screen = False
@@ -140,7 +195,36 @@ while running:
     # countdown screen
     if countdown_screen:
         displayCountdown()
-        
+    
+    # game screen
+    if game_screen:
+        in_arabic, correct, wrong1, wrong2, wrong3, selected_font = gameLogic()
+        screen.fill(color_pallete["black"])
+        screen.blit(game_bg, (0, 0))
+
+        arabic_text_surface = selected_font.render(in_arabic, True, color_pallete["white"])
+        arabic_text_rect = arabic_text_surface.get_rect(center=(width // 2, height // 2 - 115))
+        screen.blit(arabic_text_surface, arabic_text_rect)
+
+        question_number_surface = lexend_bold.render(f"{correct_answers}/{question_number-1}", True, color_pallete["white"])
+        question_number_rect = question_number_surface.get_rect(center=(60, 50))
+        screen.blit(question_number_surface, question_number_rect)
+
+        timer_number_surface = lexend_bold.render(f"{timer_value // 60}:{timer_value % 60:02d}", True, color_pallete["white"])
+        timer_number_rect = timer_number_surface.get_rect(center=(width - 70, 50))
+        screen.blit(timer_number_surface, timer_number_rect)
+
+        option_1_button_rect = pygame.Rect(110, height // 2 + 50, 300, 60)
+        createButton(screen, correct, option_1_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["black"])
+        option_2_button_rect = pygame.Rect(width - 410, height // 2 + 50, 300, 60)
+        createButton(screen, wrong1, option_2_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["black"])
+        option_3_button_rect = pygame.Rect(110, height // 2 + 150, 300, 60)
+        createButton(screen, wrong2, option_3_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["black"])
+        option_4_button_rect = pygame.Rect(width - 410, height // 2 + 150, 300, 60)
+        createButton(screen, wrong3, option_4_button_rect, color_pallete["button"], color_pallete["buttonHover"], color_pallete["black"])
+
+
+
 
 
 
@@ -155,6 +239,8 @@ while running:
                 if start_button_rect.collidepoint(event.pos):
                     begin_switch = True
                     fade_out = True
+                if quit_button_rect.collidepoint(event.pos):
+                    running = False
         
         # info screen
         if info_screen:
@@ -162,6 +248,27 @@ while running:
                 if ready_button_rect.collidepoint(event.pos):
                     begin_switch = True
                     fade_out = True
+        
+        # game screen
+        if game_screen:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if option_1_button_rect.collidepoint(event.pos):
+                    print("correct!")
+                    correct_answers += 1
+                    question_number += 1
+                    selected_word = False
+                if option_2_button_rect.collidepoint(event.pos):
+                    print("option 2 - incorrect")
+                    question_number += 1
+                    selected_word = False
+                if option_3_button_rect.collidepoint(event.pos):
+                    print("option 3 - incorrect")
+                    question_number += 1
+                    selected_word = False
+                if option_4_button_rect.collidepoint(event.pos):
+                    print("option 4 - incorrect")
+                    question_number += 1
+                    selected_word = False
                     
     # update the display
     pygame.display.flip()
