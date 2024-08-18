@@ -1,5 +1,5 @@
 # arabeasy!
-learn to read arabic quick in a wide variety of stylized scripts
+familiarize yourself with the world of stylized arabic scripts!
 
 
 requires pygame **community edition** (pygame-ce)
